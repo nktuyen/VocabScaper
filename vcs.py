@@ -285,16 +285,6 @@ def parse_url(arg: tuple) -> dict: #Return number of parsed words
                 words[ww] += 1
             else:
                 words[ww] = 1
-    if file is not None:
-        try:
-            with locker:
-                with open(f'{url_hostname(url)}.{file}','w') as json_file:
-                    json_file.write(json.dumps(url_words, sort_keys=True, indent=4))
-        except Exception as ex:
-            #print(f'Cannot save words to {_output.value} due to error:{ex}')
-            #print(url_words)
-            #exit(0)
-            pass
     if fork:
         for anchor in parser.find_all('a'):
             link: str = None
@@ -386,13 +376,26 @@ if __name__=="__main__":
     url_words: dict = {}
     if _input.has_value and os.path.exists(_input.value):
         try:
-            with open(_output.value,'r+') as json_file: 
-                obj = json.load(json_file)
-                if obj:
-                    url_words = obj
+            with open(_input.value,'r') as input_file: 
+                line: str = input_file.readline
+                while(line):
+                    line=input_file.readline()
+                    line=line.strip().lower()
+                    if line.startswith('http://') or line.startswith('https://') or line.startswith('www.'):
+                        urls.append(line)
         except Exception as ex:
             print(f'Cannot open input file:{_input.value}')
             #exit(1)
+
+    if _output.has_value and  os.path.exists(_output.value):
+        try:
+            with open(_output.value,'r+') as json_file: 
+                obj = json.load(json_file)
+                url_words = obj
+        except Exception as ex:
+            print(f'Cannot open input file:{_output.value}')
+            #exit(1)
+
     dictionary: enchant.Dict = None
     if _language.has_value:
         dictionary = enchant.Dict(_language.value)
@@ -401,7 +404,7 @@ if __name__=="__main__":
     urls = set(url_words.keys()) ^ set(urls)
     manager: multiprocessing.Manager = multiprocessing.Manager()
     locker: multiprocessing.Lock = manager.Lock()
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max(2,min(61, len(urls)))) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max(2,min(10, len(urls)))) as executor:
         futures = { executor.submit(parse_url, (url, _fork.value if _fork.has_value else False, url_words, dictionary, _output.value if _output.has_value else None, locker)) : url for url in urls}
         url: str = ''
         for future in concurrent.futures.as_completed(futures):
